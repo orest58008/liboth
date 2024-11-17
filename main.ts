@@ -1,4 +1,4 @@
-enum TagName {
+enum Tag {
    Empty = "",
 
    Title = "title",
@@ -9,6 +9,7 @@ enum TagName {
    ListEnd = "/l",
 
    Heading = "h",
+   HorizontalRule = "hr",
    ListItem = "li",
    Paragraph = "p",
 
@@ -18,99 +19,101 @@ enum TagName {
    StrikeThrough = "s",
 }
 
-interface TagOptions {
+interface ElementOptions {
    BlockClass?: string,
    HeadingLevel?: number,
    ListItemLevel?: number,
    ListItemIndex?: number,
 }
 
-interface Tag {
-   name: TagName,
-   options?: TagOptions,
+interface Element {
+   tag: Tag,
+   options?: ElementOptions,
    content?: string,
 }
 
-export function parseByLines(lines: string[]): Tag[] {
-   const result: Tag[] = []
+export function parseByLines(lines: string[]): Element[] {
+   const result: Element[] = []
 
-   const lineToTag: [RegExp, (_: string) => Tag][] = [
-      [/^#\+TITLE:\s*/i, (_: string): Tag => {    // Title
-         return { name: TagName.Title }
+   // define a table of tag conditions
+   const lineToElement: [RegExp, (_: string) => Element][] = [
+      [/^#\+TITLE:\s*/i, (_: string): Element => {    // Title
+         return { tag: Tag.Title }
       }],
-      [/^#\+BEGIN_/i, (_: string): Tag => {       // Block Start
+      [/^#\+BEGIN_/i, (_: string): Element => {       // Block Start
          return {
-            name: TagName.BlockStart,
+            tag: Tag.BlockStart,
          }
       }],
-      [/^#\+END_/i, (_: string): Tag => {         // Block End
+      [/^#\+END_/i, (_: string): Element => {         // Block End
          return {
-            name: TagName.BlockEnd,
+            tag: Tag.BlockEnd,
          }
       }],
-      [/^\*+\s+/, (line: string): Tag => {        // Heading
+      [/^\*+\s+/, (line: string): Element => {        // Heading
          return {
-            name: TagName.Heading,
+            tag: Tag.Heading,
             options: { HeadingLevel: /^\*+/.exec(line)![0].length }
          }
       }],
-      [/^\s*[-+*]\s+/, (line: string): Tag => {   // List Item (Unordered)
+      [/^-{5}/, (_: string): Element => {             // Horizontal Rule
+         return { tag: Tag.HorizontalRule }
+      }],
+      [/^\s*[-+*]\s+/, (line: string): Element => {   // List Item (Unordered)
          return {
-            name: TagName.ListItem,
+            tag: Tag.ListItem,
             content: line.replace(/[-+*]\s+/, "")
          }
       }],
-      [/^\s*\d+[.)]\s+/, (line: string): Tag => { // List Item (Ordered)
+      [/^\s*\d+[.)]\s+/, (line: string): Element => { // List Item (Ordered)
          return {
-            name: TagName.ListItem,
+            tag: Tag.ListItem,
             content: line.replace(/\d+[.)]\s+/, ""),
             options: { ListItemIndex: +/\d+/.exec(line)![0] }
          }
       }],
-      [/^$/, (_: string): Tag => {                // Empty Line
-         return { name: TagName.Empty }
+      [/^$/, (_: string): Element => {                // Empty Line
+         return { tag: Tag.Empty }
       }],
-      [/.*/, (line: string): Tag => {             // Paragraph (Text)
+      [/.*/, (line: string): Element => {             // Paragraph (Text)
          return {
-            name: TagName.Paragraph,
+            tag: Tag.Paragraph,
             content: line
          }
       }],
    ]
 
+   // initial conversion of raw strings into Element format
    for (const line of lines) {
-      const match = lineToTag.find((elem => elem[0].test(line)))
+      const match = lineToElement.find((elem => elem[0].test(line)))
       if (!match) continue
 
       const cond = match[0], func = match[1]
 
-      const tag = func(line).content
+      const element = func(line).content
          ? func(line)
          : { ...func(line), content: line.replace(cond, "") }
-      
-      if (tag.name == TagName.BlockStart || tag.name == TagName.BlockEnd) {
-         tag.options = {
-            ...tag.options,
-            BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase()
-         }
-         tag.content! = line.replace(cond, "").replace(/[\w]+\s*/, "")
+
+      if (element.tag == Tag.BlockStart || element.tag == Tag.BlockEnd) {
+         element.options = { BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase() }
+         element.content! = line.replace(cond, "").replace(/[\w]+\s*/, "")
       }
 
-      result.push(tag)
+      result.push(element)
    }
 
+   // sliding window post-processing
    for (let index = 0; index < result.length; index++) {
-      const tag = result[index]
+      const element = result[index]
       const prev = result[index - 1]
 
-      if (tag.name == TagName.Paragraph) {
-         if (prev.name != TagName.BlockEnd && prev.options?.BlockClass == "src")
-            tag.options = {
-               ...tag.options,
-               BlockClass: "src"
-            }
+      if (element.tag == Tag.Paragraph) {
+         // propagate "src" class through code
+         if (prev.tag != Tag.BlockEnd && prev.options?.BlockClass == "src")
+            element.options = { ...element.options, BlockClass: "src" }
 
-         if (prev.name == TagName.Paragraph) {
+         // join paragraphs that aren't separated by an empty line or an `\\`
+         if (prev.tag == Tag.Paragraph && !/.*\\{2}$/.test(prev.content!)) {
             const separator = (() => {
                switch (true) {
                   case prev.options?.BlockClass == "src": return '\n'
@@ -119,21 +122,17 @@ export function parseByLines(lines: string[]): Tag[] {
             })()
 
             result.splice(index - 1, 2,
-               { ...prev, content: prev.content?.concat(separator, tag.content!) })
+               { ...prev, content: prev.content?.concat(separator, element.content!) })
 
             index -= 1
          }
       }
    }
 
-   for (const tag of result) {
-      const index = result.indexOf(tag)
-      if (tag.name == TagName.Empty) result.splice(index, 1)
-   }
-
-   return result
+   // return result without empty lines
+   return result.filter((element) => element.tag != Tag.Empty)
 }
 
 console.log (
-   parseByLines(Deno.readTextFileSync("./README.org").split("\n"))
+   parseByLines(Deno.readTextFileSync("./README.org").split(/\n/))
 )

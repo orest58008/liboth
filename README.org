@@ -4,9 +4,12 @@
 
 ** This a heading two
 
+
 This is a paragraph. You can make words *bold*, /italic/, _underlined_, =verbatim= and ~code~, and,
 if you must, +strike-through+. You can include links [[https://orgmode.org/org.html#Hyperlinks][like
 this]] or like this: [[https://orgmode.org/org.html#Hyperlinks]]
+
+-----
 
 #+BEGIN_SRC js
    this.is("a code block")
