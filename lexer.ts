@@ -1,12 +1,14 @@
-enum Tag {
+export enum Tag {
    Empty = "",
 
    Title = "title",
 
    BlockStart = "div",
    BlockEnd = "/div",
-   ListStart = "l",
-   ListEnd = "/l",
+   OrderedListStart = "ol",
+   OrderedListEnd = "/ol",
+   UnorderedListStart = "ul",
+   UnorderedListEnd = "/ul",
 
    Heading = "h",
    HorizontalRule = "hr",
@@ -26,7 +28,7 @@ interface ElementOptions {
    ListItemIndex?: number,
 }
 
-interface Element {
+export interface Element {
    tag: Tag,
    options?: ElementOptions,
    content?: string,
@@ -56,7 +58,7 @@ export function parseByLines(lines: string[]): Element[] {
             options: { HeadingLevel: /^\*+/.exec(line)![0].length }
          }
       }],
-      [/^-{5}/, (_: string): Element => {             // Horizontal Rule
+      [/^-+$/, (_: string): Element => {             // Horizontal Rule
          return { tag: Tag.HorizontalRule }
       }],
       [/^\s*[-+*]\s+/, (line: string): Element => {   // List Item (Unordered)
@@ -85,6 +87,8 @@ export function parseByLines(lines: string[]): Element[] {
 
    // initial conversion of raw strings into Element format
    for (const line of lines) {
+      if (/^#\s/.test(line)) continue
+
       const match = lineToElement.find((elem => elem[0].test(line)))
       if (!match) continue
 
@@ -96,7 +100,7 @@ export function parseByLines(lines: string[]): Element[] {
 
       if (element.tag == Tag.BlockStart || element.tag == Tag.BlockEnd) {
          element.options = { BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase() }
-         element.content! = line.replace(cond, "").replace(/[\w]+\s*/, "")
+         element.content = line.replace(cond, "").replace(/[\w]+\s*/, "")
       }
 
       result.push(element)
@@ -104,31 +108,57 @@ export function parseByLines(lines: string[]): Element[] {
 
    // sliding window post-processing
    for (let index = 0; index < result.length; index++) {
-      const element = result[index]
+      const elem = result[index]
       const prev = result[index - 1]
+      const next = result[index + 1]
+     
+      switch (elem.tag) {
+         case Tag.Paragraph:
+            // propagate BlockClass
+            if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)
+               elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
 
-      if (element.tag == Tag.Paragraph) {
-         // propagate "src" class through code
-         if (prev.tag != Tag.BlockEnd && prev.options?.BlockClass == "src")
-            element.options = { ...element.options, BlockClass: "src" }
+            // join paragraphs that aren't separated by an empty line or `\\`
+            if (prev?.tag == Tag.Paragraph && !/.*\\{2}$/.test(prev.content!)) {
+               const separator = (() => {
+                  switch (true) {
+                     case prev.options?.BlockClass == "src": return '\n'
+                     default: return ' '
+                  }
+               })()
 
-         // join paragraphs that aren't separated by an empty line or an `\\`
-         if (prev.tag == Tag.Paragraph && !/.*\\{2}$/.test(prev.content!)) {
-            const separator = (() => {
-               switch (true) {
-                  case prev.options?.BlockClass == "src": return '\n'
-                  default: return ' '
-               }
-            })()
+               result.splice(index - 1, 2,
+                  { ...prev, content: prev.content?.concat(separator, elem.content!) })
 
-            result.splice(index - 1, 2,
-               { ...prev, content: prev.content?.concat(separator, element.content!) })
+               index -= 1
+            }
+            break;
 
-            index -= 1
-         }
+         case Tag.ListItem:
+            // create ListStart
+            if (prev?.tag != Tag.ListItem) {
+               const tag = elem.options?.ListItemIndex
+                  ? Tag.OrderedListStart
+                  : Tag.UnorderedListStart
+
+               result.splice(index, 0, { tag: tag })
+               index += 1
+            }
+
+            // create ListEnd
+            if (next?.tag != Tag.ListItem) {
+               const tag = elem.options?.ListItemIndex
+                  ? Tag.OrderedListEnd
+                  : Tag.UnorderedListEnd
+
+               result.splice(index + 1, 0, { tag: tag })
+               index += 1
+            }
       }
    }
 
    // return result without empty lines
-   return result.filter((element) => element.tag != Tag.Empty)
+   return result.filter((e) =>
+      e.tag != Tag.Empty && e.options?.BlockClass != "comment"
+   )
 }

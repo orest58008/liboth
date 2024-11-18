@@ -14,12 +14,17 @@ this]] or like this: [[https://orgmode.org/org.html#Hyperlinks]]
 #+BEGIN_SRC js
    this.is("a code block")
    this.is("also a code block")
+   this.is("a third code block")
 #+END_SRC
 
 This is an ordered list:
 1. st item,
 2. nd item,
 3. rd item
+
+#+BEGIN_COMMENT
+   if you see this something went wrong
+#+END_COMMENT
 
 And this is unordered list:
 - an item,
