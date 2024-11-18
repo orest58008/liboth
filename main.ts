@@ -132,7 +132,3 @@ export function parseByLines(lines: string[]): Element[] {
    // return result without empty lines
    return result.filter((element) => element.tag != Tag.Empty)
 }
-
-console.log (
-   parseByLines(Deno.readTextFileSync("./README.org").split(/\n/))
-)
