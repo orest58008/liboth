@@ -58,20 +58,26 @@ export function parseByLines(lines: string[]): Element[] {
             options: { HeadingLevel: /^\*+/.exec(line)![0].length }
          }
       }],
-      [/^-+$/, (_: string): Element => {             // Horizontal Rule
+      [/^-+$/, (_: string): Element => {              // Horizontal Rule
          return { tag: Tag.HorizontalRule }
       }],
       [/^\s*[-+*]\s+/, (line: string): Element => {   // List Item (Unordered)
          return {
             tag: Tag.ListItem,
-            content: line.replace(/[-+*]\s+/, "")
+            content: line.replace(/[-+*]\s+/, ""),
+            options: {
+               ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0
+            }
          }
       }],
       [/^\s*\d+[.)]\s+/, (line: string): Element => { // List Item (Ordered)
          return {
             tag: Tag.ListItem,
             content: line.replace(/\d+[.)]\s+/, ""),
-            options: { ListItemIndex: +/\d+/.exec(line)![0] }
+            options: {
+               ListItemIndex: +/\d+/.exec(line)![0],
+               ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0
+            }
          }
       }],
       [/^$/, (_: string): Element => {                // Empty Line
@@ -122,7 +128,7 @@ export function parseByLines(lines: string[]): Element[] {
             if (prev?.tag == Tag.Paragraph && !/.*\\{2}$/.test(prev.content!)) {
                const separator = (() => {
                   switch (true) {
-                     case prev.options?.BlockClass == "src": return '\n'
+                     case prev.options?.BlockClass == "src": return "\n"
                      default: return ' '
                   }
                })()
@@ -132,6 +138,8 @@ export function parseByLines(lines: string[]): Element[] {
 
                index -= 1
             }
+
+
             break;
 
          case Tag.ListItem:
@@ -156,6 +164,29 @@ export function parseByLines(lines: string[]): Element[] {
             }
       }
    }
+
+   // ListItemLevel normalisation
+   const ListItemLevels: number[] = [];
+   let insideList: boolean = false;
+
+   for (const elem of result) {
+      if (elem.tag == Tag.OrderedListStart || elem.tag == Tag.UnorderedListStart)
+         insideList = true
+      else if (elem.tag == Tag.OrderedListEnd || elem.tag == Tag.UnorderedListEnd)
+         insideList = false
+      else if (
+         insideList &&
+         elem.tag == Tag.ListItem &&
+         !ListItemLevels.includes(elem.options?.ListItemLevel!)
+      ) ListItemLevels.push(elem.options?.ListItemLevel!)
+   }
+
+   ListItemLevels.toSorted((a, b) => a - b)
+
+   result.map((elem) => {
+      if (elem.options?.ListItemLevel)
+         elem.options.ListItemLevel = ListItemLevels.indexOf(elem.options.ListItemLevel)
+   })
 
    // return result without empty lines
    return result.filter((e) =>

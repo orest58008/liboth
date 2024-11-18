@@ -7,4 +7,5 @@ const lexer_out =
 const parser_out =
    parser.parseByElement(lexer_out)
 
-console.log(Deno.writeTextFileSync("./README.html", parser_out.join('\n')))
+console.log(lexer_out)
+Deno.writeTextFileSync("./TEST.html", parser_out.join('\n'))
