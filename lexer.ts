@@ -34,9 +34,7 @@ export interface Element {
    content?: string,
 }
 
-export function parseByLines(lines: string[]): Element[] {
-   const result: Element[] = []
-
+export function lexLines(lines: string[]): Element[] {
    // define a table of tag conditions
    const lineToElement: [RegExp, (_: string) => Element][] = [
       [/^#\+TITLE:\s*/i, (_: string): Element => {    // Title
@@ -92,25 +90,24 @@ export function parseByLines(lines: string[]): Element[] {
    ]
 
    // initial conversion of raw strings into Element format
-   for (const line of lines) {
-      if (/^#\s/.test(line)) continue
+   const result: Element[] = lines
+      .filter((e) => !/^#\s/.test(e))
+      .map((line) => {
+         const match = lineToElement.find((elem => elem[0].test(line)))
 
-      const match = lineToElement.find((elem => elem[0].test(line)))
-      if (!match) continue
+         const cond = match![0], func = match![1]
 
-      const cond = match[0], func = match[1]
+         const element = func(line).content
+            ? func(line)
+            : { ...func(line), content: line.replace(cond, "") }
 
-      const element = func(line).content
-         ? func(line)
-         : { ...func(line), content: line.replace(cond, "") }
+         if (element.tag == Tag.BlockStart || element.tag == Tag.BlockEnd) {
+            element.options = { BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase() }
+            element.content = line.replace(cond, "").replace(/[\w]+\s*/, "")
+         }
 
-      if (element.tag == Tag.BlockStart || element.tag == Tag.BlockEnd) {
-         element.options = { BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase() }
-         element.content = line.replace(cond, "").replace(/[\w]+\s*/, "")
-      }
-
-      result.push(element)
-   }
+         return element
+      })
 
    // sliding window post-processing
    for (let index = 0; index < result.length; index++) {
@@ -124,11 +121,11 @@ export function parseByLines(lines: string[]): Element[] {
             if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)
                elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
 
-            // join paragraphs that aren't separated by an empty line or `\\`
-            if (prev?.tag == Tag.Paragraph && !/.*\\{2}$/.test(prev.content!)) {
+            // join paragraphs that aren't separated by an empty line
+            if (prev?.tag == Tag.Paragraph) {
                const separator = (() => {
                   switch (true) {
-                     case prev.options?.BlockClass == "src": return "\n"
+                     case prev.options?.BlockClass == "src": return "<br>"
                      default: return ' '
                   }
                })()
@@ -138,7 +135,6 @@ export function parseByLines(lines: string[]): Element[] {
 
                index -= 1
             }
-
 
             break;
 
