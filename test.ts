@@ -1,11 +1,12 @@
 import * as lexer from "./lexer.ts"
 import * as parser from "./parser.ts"
 
+const file = Deno.args[0]
+
 const lexer_out =
-   lexer.parseByLines(Deno.readTextFileSync("./TEST.org").split(/\n/))
+   lexer.lexLines(Deno.readTextFileSync(file).split(/\n/))
 
 const parser_out =
-   parser.parseByElement(lexer_out)
+   parser.parseElements(lexer_out)
 
-console.log(lexer_out)
-Deno.writeTextFileSync("./TEST.html", parser_out.join('\n'))
+Deno.writeTextFileSync(file.replace("org", "html"), parser_out.join('\n'))

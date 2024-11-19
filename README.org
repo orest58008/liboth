@@ -1,0 +1,5 @@
+* /Lib/rary that transforms /O/rg in/t/o /H/TML
+
+** Skinless output
+liboth supplies [[https://nerdy.dev/headless-boneless-and-skinless-ui#skinless-ui][skinless]] HTML
+output which is designed to be stylable and JS-able by the user.
