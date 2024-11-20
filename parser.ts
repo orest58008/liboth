@@ -10,7 +10,7 @@ function parseLine(line: string): string {
       code: false,
       italic: false,
       strikeThrough: false,
-      underline: false,
+      underlined: false,
       verbatim: false,
    }
 
@@ -19,13 +19,9 @@ function parseLine(line: string): string {
       const next: string = line[index + 1]
 
       switch (true) {
-         case char == "=" && !style.verbatim:
-            style.verbatim = true
-            result.push("<code>")
-            break
          case char == "=":
-            style.verbatim = false
-            result.push("</code>")
+            style.verbatim = !style.verbatim
+            result.push(style.verbatim ? "<code>" : "</code>")
             break
          case style.verbatim:
             result.push(char)
@@ -57,49 +53,25 @@ function parseLine(line: string): string {
             link.push(char)
             break
 
-         case char == "*" && !style.bold:
-            result.push("<b>")
-            style.bold = true
-            break
          case char == "*":
-            result.push("</b>")
-            style.bold = false
-            break
-
-         case char == "/" && !style.italic:
-            result.push("<i>")
-            style.italic = true
+            style.bold = !style.bold
+            result.push(style.bold ? "<b>" : "</b>")
             break
          case char == "/":
-            result.push("</i>")
-            style.italic = false
-            break
-
-         case char == "_" && !style.underline:
-            result.push("<u>")
-            style.underline = true
+            style.italic = !style.italic
+            result.push(style.italic ? "<i>" : "</i>")
             break
          case char == "_":
-            result.push("</u>")
-            style.underline = false
-            break
-
-         case char == "~" && !style.code:
-            style.code = true
-            result.push("<code>")
-            break
-         case char == "~":
-            style.code = false
-            result.push("</code>")
-            break
-
-         case char == "+" && !style.strikeThrough:
-            style.strikeThrough = true
-            result.push("<s>")
+            style.underlined = !style.underlined
+            result.push(style.underlined ? "<u>" : "</u>")
             break
          case char == "+":
-            style.strikeThrough = false
-            result.push("</s>")
+            style.strikeThrough = !style.strikeThrough
+            result.push(style.strikeThrough ? "<s>" : "</s>")
+            break
+         case char == "~":
+            style.code = !style.code
+            result.push(style.code ? "<code>" : "</code>")
             break
 
          case true:
@@ -118,32 +90,32 @@ export function parseElements(elements: Element[]): string[] {
    ]
 
    const result: string[] = elements.map((element) => {
-      const content = element.content
+      const content = element.content?.trim()
       const options = element.options
       const tag = element.tag
 
-      if (blockTags.includes(tag))
-         return [
-            "<",
-            tag,
-            tag.includes("/") ? ">" :
+      switch (true) {
+         case blockTags.includes(tag):
+            return [
+               "<",
+               tag,
+               tag.includes("/") ? ">" :
+                  options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
+            ].join('')
+         case content != '':
+            return [
+               "<",
+               tag,
+               options?.HeadingLevel ? options.HeadingLevel : "",
                options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-         ].join('')
-
-      if (content)
-         return [
-            "<",
-            tag,
-            options?.HeadingLevel ? options.HeadingLevel : "",
-            options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-            options?.BlockClass ? content : parseLine(content),
-            "</",
-            tag,
-            options?.HeadingLevel ? options.HeadingLevel : "",
-            ">"
-         ].join('')
-
-      return "<" + tag + ">"
+               options?.BlockClass ? content : parseLine(content!),
+               "</",
+               tag,
+               options?.HeadingLevel ? options.HeadingLevel : "",
+               ">"
+            ].join('')
+         default: return "<" + tag + ">"
+      }
    })
 
    return result.filter((e) => e != "")

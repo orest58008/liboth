@@ -90,7 +90,11 @@ export function lexLines(lines: string[]): Element[] {
    ]
 
    // initial conversion of raw strings into Element format
-   const result: Element[] = lines
+   let paragraph: string[] = []
+   const ListItemLevels: number[] = []
+   let insideList: boolean = false
+
+   return lines
       .filter((e) => !/^#\s/.test(e))
       .map((line) => {
          const match = lineToElement.find((elem => elem[0].test(line)))
@@ -102,90 +106,100 @@ export function lexLines(lines: string[]): Element[] {
             : { ...func(line), content: line.replace(cond, "") }
 
          if (element.tag == Tag.BlockStart || element.tag == Tag.BlockEnd) {
-            element.options = { BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase() }
+            element.options = {
+               BlockClass: line.replace(cond, "").replace(/\s.*/, "").toLowerCase()
+            }
             element.content = line.replace(cond, "").replace(/[\w]+\s*/, "")
          }
 
          return element
       })
+      .flatMap((elem, index, array): Element | Element[] => {
+         const prev = array[index - 1]
+         const next = array[index + 1]
 
-   // sliding window post-processing
-   for (let index = 0; index < result.length; index++) {
-      const elem = result[index]
-      const prev = result[index - 1]
-      const next = result[index + 1]
-     
-      switch (elem.tag) {
-         case Tag.Paragraph:
-            // propagate BlockClass
-            if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)
-               elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
+         const content = elem.content?.trim()
+         const prev_content = prev?.content?.trim()
+         let tag: Tag
 
-            // join paragraphs that aren't separated by an empty line
-            if (prev?.tag == Tag.Paragraph) {
-               const separator = (() => {
-                  switch (true) {
-                     case prev.options?.BlockClass == "src": return "<br>"
-                     default: return ' '
+         switch (true) {
+            case elem.tag == Tag.Paragraph:
+               // propagate BlockClass
+               if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)
+                  elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
+
+               // join paragraphs that aren't separated by an empty line
+               if (prev?.tag == Tag.Paragraph) {
+                  const separator = (() => {
+                     switch (true) {
+                        case prev.options?.BlockClass == "src": return "<br>"
+                        default: return ' '
+                     }
+                  })()
+
+                  if (!paragraph.length)
+                     paragraph.push(prev_content!, content!)
+                  else
+                     paragraph.push(content!)
+
+                  if (next?.tag != Tag.Paragraph) {
+                     const content = paragraph.join(separator)
+                     paragraph = []
+
+                     return { ...elem, content: content }
                   }
-               })()
+               }
 
-               result.splice(index - 1, 2,
-                  { ...prev, content: prev.content?.concat(separator, elem.content!) })
+               break
 
-               index -= 1
-            }
-
-            break;
-
-         case Tag.ListItem:
-            // create ListStart
-            if (prev?.tag != Tag.ListItem) {
-               const tag = elem.options?.ListItemIndex
+            // Insert ListItemStart
+            case elem.tag == Tag.ListItem && prev?.tag != Tag.ListItem:
+               tag = elem.options?.ListItemIndex
                   ? Tag.OrderedListStart
                   : Tag.UnorderedListStart
 
-               result.splice(index, 0, { tag: tag })
-               index += 1
-            }
+               return [{ tag: tag }, elem]
 
-            // create ListEnd
-            if (next?.tag != Tag.ListItem) {
-               const tag = elem.options?.ListItemIndex
+            // Insert ListItemEnd
+            case elem.tag == Tag.ListItem && next?.tag != Tag.ListItem:
+               tag = elem.options?.ListItemIndex
                   ? Tag.OrderedListEnd
                   : Tag.UnorderedListEnd
 
-               result.splice(index + 1, 0, { tag: tag })
-               index += 1
+               return [elem, { tag: tag }]
+
+            case true:
+               return elem
+         }
+         return { tag: Tag.Empty }
+      })
+      .map((elem) => {
+         if (elem.tag == Tag.OrderedListStart || elem.tag == Tag.UnorderedListStart)
+            insideList = true
+         else if (elem.tag == Tag.OrderedListEnd || elem.tag == Tag.UnorderedListEnd)
+            insideList = false
+         else if (
+            insideList &&
+            elem.tag == Tag.ListItem &&
+            !ListItemLevels.includes(elem.options?.ListItemLevel!)
+         ) ListItemLevels.push(elem.options?.ListItemLevel!)
+
+         return (elem)
+      })
+      .map((elem) => {
+         if (!elem.options?.ListItemLevel) return elem
+
+         ListItemLevels.toSorted((a, b) => a - b)
+
+         return {
+            ...elem,
+            options: {
+               ...elem.options,
+               ListItemLevel: ListItemLevels.indexOf(elem.options?.ListItemLevel!)
             }
-      }
-   }
-
-   // ListItemLevel normalisation
-   const ListItemLevels: number[] = [];
-   let insideList: boolean = false;
-
-   for (const elem of result) {
-      if (elem.tag == Tag.OrderedListStart || elem.tag == Tag.UnorderedListStart)
-         insideList = true
-      else if (elem.tag == Tag.OrderedListEnd || elem.tag == Tag.UnorderedListEnd)
-         insideList = false
-      else if (
-         insideList &&
-         elem.tag == Tag.ListItem &&
-         !ListItemLevels.includes(elem.options?.ListItemLevel!)
-      ) ListItemLevels.push(elem.options?.ListItemLevel!)
-   }
-
-   ListItemLevels.toSorted((a, b) => a - b)
-
-   result.map((elem) => {
-      if (elem.options?.ListItemLevel)
-         elem.options.ListItemLevel = ListItemLevels.indexOf(elem.options.ListItemLevel)
-   })
-
-   // return result without empty lines
-   return result.filter((e) =>
-      e.tag != Tag.Empty && e.options?.BlockClass != "comment"
-   )
+         }
+      })
+      .filter((elem) =>
+         elem.tag != Tag.Empty && elem.options?.BlockClass != "comment"
+      )
 }
