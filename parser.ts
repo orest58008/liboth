@@ -1,7 +1,6 @@
 import { Element, Tag } from "./lexer.ts";
 
 function parseLine(line: string): string {
-   const result: string[] = []
    let link: string[] = []
 
    const style = {
@@ -14,72 +13,66 @@ function parseLine(line: string): string {
       verbatim: false,
    }
 
-   for (let index = 0; index < line.length; index += 1) {
-      const char: string = line[index]
-      const next: string = line[index + 1]
+   return line.split('')
+      .map((char, index, array) => {
+         const next: string = array[index + 1]
+         const prev: string = array[index - 1]
 
-      switch (true) {
-         case char == "=":
-            style.verbatim = !style.verbatim
-            result.push(style.verbatim ? "<code>" : "</code>")
-            break
-         case style.verbatim:
-            result.push(char)
-            break
+         switch (true) {
+            case char == "=":
+               style.verbatim = !style.verbatim
+               return style.verbatim ? "<code>" : "</code>"
+            case style.verbatim:
+               return char
 
-         case char == "\\" && next == "\\":
-            result.push("<br>")
-            index += 1
-            break
+            case char == "\\" && next == "\\":
+               if (prev == "\\") return ""
+               return "<br>"
 
-         case char == "[" && next == "[":
-            result.push(`<a href="`)
-            style.link = true; link = []
-            index += 1
-            break
-         case char == "]" && next == "[":
-            result.push(`">`)
-            style.link = false
-            index += 1
-            break
-         case char == "]" && next == "]":
-            if (style.link) result.push(`">` + link.join(''))
-            result.push("</a>")
-            style.link = false
-            index += 1
-            break
-         case style.link:
-            result.push(char)
-            link.push(char)
-            break
+            case char == "[":
+               if (prev == "[" || prev == "]") return ""
+               else if (next == "[") {
+                  style.link = true
+                  link = []
+                  return '<a href="'
+               } else return "["
+            case char == "]":
+               if (prev == "]") return ""
+               else if (next == "[") {
+                  style.link = false
+                  return '">'
+               } else if (next == "]" && style.link) {
+                  style.link = false
+                  return '">' + link.join('') + "</a>"
+               } else if (next == "]") {
+                  style.link = false
+                  return "</a>"
+               }
+               else return "]"
+            case style.link:
+               link.push(char)
+               return char
 
-         case char == "*":
-            style.bold = !style.bold
-            result.push(style.bold ? "<b>" : "</b>")
-            break
-         case char == "/":
-            style.italic = !style.italic
-            result.push(style.italic ? "<i>" : "</i>")
-            break
-         case char == "_":
-            style.underlined = !style.underlined
-            result.push(style.underlined ? "<u>" : "</u>")
-            break
-         case char == "+":
-            style.strikeThrough = !style.strikeThrough
-            result.push(style.strikeThrough ? "<s>" : "</s>")
-            break
-         case char == "~":
-            style.code = !style.code
-            result.push(style.code ? "<code>" : "</code>")
-            break
+            case char == "*":
+               style.bold = !style.bold
+               return style.bold ? "<b>" : "</b>"
+            case char == "/":
+               style.italic = !style.italic
+               return style.italic ? "<i>" : "</i>"
+            case char == "_":
+               style.underlined = !style.underlined
+               return style.underlined ? "<u>" : "</u>"
+            case char == "+":
+               style.strikeThrough = !style.strikeThrough
+               return style.strikeThrough ? "<s>" : "</s>"
+            case char == "~":
+               style.code = !style.code
+               return style.code ? "<code>" : "</code>"
 
-         case true:
-            result.push(char)
-      }
-   }
-
-   return result.join('')
+            case true:
+               return char
+         }
+      }).join('')
 }
 
 export function parseElements(elements: Element[]): string[] {
@@ -89,34 +82,33 @@ export function parseElements(elements: Element[]): string[] {
       Tag.UnorderedListStart, Tag.UnorderedListEnd,
    ]
 
-   const result: string[] = elements.map((element) => {
-      const content = element.content?.trim()
-      const options = element.options
-      const tag = element.tag
+   return elements
+      .map((element) => {
+         const content = element.content?.trim()
+         const options = element.options
+         const tag = element.tag
 
-      switch (true) {
-         case blockTags.includes(tag):
-            return [
-               "<",
-               tag,
-               tag.includes("/") ? ">" :
+         switch (true) {
+            case blockTags.includes(tag):
+               return [
+                  "<",
+                  tag,
+                  tag.includes("/") ? ">" :
+                     options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
+               ].join('')
+            case content != '':
+               return [
+                  "<",
+                  tag,
+                  options?.HeadingLevel ? options.HeadingLevel : "",
                   options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-            ].join('')
-         case content != '':
-            return [
-               "<",
-               tag,
-               options?.HeadingLevel ? options.HeadingLevel : "",
-               options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-               options?.BlockClass ? content : parseLine(content!),
-               "</",
-               tag,
-               options?.HeadingLevel ? options.HeadingLevel : "",
-               ">"
-            ].join('')
-         default: return "<" + tag + ">"
-      }
-   })
-
-   return result.filter((e) => e != "")
+                  options?.BlockClass ? content : parseLine(content!),
+                  "</",
+                  tag,
+                  options?.HeadingLevel ? options.HeadingLevel : "",
+                  ">"
+               ].join('')
+            default: return "<" + tag + ">"
+         }
+      }).filter((e) => e != "")
 }
