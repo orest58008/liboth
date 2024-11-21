@@ -25,9 +25,10 @@ function parseLine(line: string): string {
             case style.verbatim:
                return char
 
-            case char == "\\" && next == "\\":
-               if (prev == "\\") return ""
-               return "<br>"
+            case char == "\\":
+               if (next == "\\") return ""
+               if (prev == "\\") return "<br>"
+               else return "\\"
 
             case char == "[":
                if (prev == "[" || prev == "]") return ""
@@ -38,14 +39,12 @@ function parseLine(line: string): string {
                } else return "["
             case char == "]":
                if (prev == "]") return ""
-               else if (next == "[") {
-                  style.link = false
+               style.link = false
+               if (next == "[") {
                   return '">'
                } else if (next == "]" && style.link) {
-                  style.link = false
                   return '">' + link.join('') + "</a>"
                } else if (next == "]") {
-                  style.link = false
                   return "</a>"
                }
                else return "]"
@@ -75,14 +74,28 @@ function parseLine(line: string): string {
       }).join('')
 }
 
-export function parseElements(elements: Element[]): string[] {
+export interface html {
+   head: string[],
+   body: string[],
+}
+
+export function parseElements(elements: Element[]): html {
    const blockTags: Tag[] = [
       Tag.BlockStart, Tag.BlockEnd,
       Tag.OrderedListStart, Tag.OrderedListEnd,
       Tag.UnorderedListStart, Tag.UnorderedListEnd,
-   ]
+   ] as const
 
-   return elements
+   const headTags: Tag[] = [
+      Tag.Title
+   ] as const
+
+   interface resultCandidate {
+      isHead: boolean,
+      result: string
+   }
+
+   const allResults: resultCandidate[] = elements
       .map((element) => {
          const content = element.content?.trim()
          const options = element.options
@@ -90,25 +103,40 @@ export function parseElements(elements: Element[]): string[] {
 
          switch (true) {
             case blockTags.includes(tag):
-               return [
-                  "<",
-                  tag,
-                  tag.includes("/") ? ">" :
-                     options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-               ].join('')
+               return {
+                  isHead: headTags.includes(tag),
+                  result: [
+                     "<",
+                     tag,
+                     tag.includes("/") ? ">" :
+                        options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
+                  ].join('')
+               }
             case content != '':
-               return [
-                  "<",
-                  tag,
-                  options?.HeadingLevel ? options.HeadingLevel : "",
-                  options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-                  options?.BlockClass ? content : parseLine(content!),
-                  "</",
-                  tag,
-                  options?.HeadingLevel ? options.HeadingLevel : "",
-                  ">"
-               ].join('')
-            default: return "<" + tag + ">"
+               return {
+                  isHead: headTags.includes(tag),
+                  result: [
+                     "<",
+                     tag,
+                     options?.HeadingLevel ? options.HeadingLevel : "",
+                     options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
+                     options?.BlockClass ? content : parseLine(content!),
+                     "</",
+                     tag,
+                     options?.HeadingLevel ? options.HeadingLevel : "",
+                     ">"
+                  ].join('')
+               }
+            default:
+               return {
+                  isHead: headTags.includes(tag),
+                  result: "<" + tag + ">"
+               }
          }
-      }).filter((e) => e != "")
+      })
+
+   return {
+      head: allResults.map((e) => e.isHead ? e.result : ""),
+      body: allResults.map((e) => e.isHead ? "" : e.result),
+   }
 }

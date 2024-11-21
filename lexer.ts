@@ -34,72 +34,84 @@ export interface Element {
    content?: string,
 }
 
+interface ElementTransformer {
+   condition: RegExp,
+   transformer: (_: string) => Element,
+}
+
 export function lexLines(lines: string[]): Element[] {
    // define a table of tag conditions
-   const lineToElement: [RegExp, (_: string) => Element][] = [
-      [/^#\+TITLE:\s*/i, (_: string): Element => {    // Title
-         return { tag: Tag.Title }
-      }],
-      [/^#\+BEGIN_/i, (_: string): Element => {       // Block Start
-         return {
-            tag: Tag.BlockStart,
-         }
-      }],
-      [/^#\+END_/i, (_: string): Element => {         // Block End
-         return {
-            tag: Tag.BlockEnd,
-         }
-      }],
-      [/^\*+\s+/, (line: string): Element => {        // Heading
-         return {
-            tag: Tag.Heading,
-            options: { HeadingLevel: /^\*+/.exec(line)![0].length }
-         }
-      }],
-      [/^-+$/, (_: string): Element => {              // Horizontal Rule
-         return { tag: Tag.HorizontalRule }
-      }],
-      [/^\s*[-+*]\s+/, (line: string): Element => {   // List Item (Unordered)
-         return {
-            tag: Tag.ListItem,
-            content: line.replace(/[-+*]\s+/, ""),
-            options: {
-               ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0
+   const lineToElement: ElementTransformer[] = [
+      { // Title
+         condition: /^#\+TITLE:\s*/i,
+         transformer: () => { return { tag: Tag.Title } }
+      },
+      { // BlockStart
+         condition: /^#\+BEGIN_/i,
+         transformer: () => { return { tag: Tag.BlockStart } }
+      },
+      { // BlockEnd
+         condition: /^#\+END_/i,
+         transformer: () => { return { tag: Tag.BlockEnd } }
+      },
+      { // Heading
+         condition: /^\*+\s+/,
+         transformer: (line): Element => {
+            return {
+               tag: Tag.Heading,
+               options: { HeadingLevel: /^\*+/.exec(line)![0].length }
             }
          }
-      }],
-      [/^\s*\d+[.)]\s+/, (line: string): Element => { // List Item (Ordered)
-         return {
-            tag: Tag.ListItem,
-            content: line.replace(/\d+[.)]\s+/, ""),
-            options: {
-               ListItemIndex: +/\d+/.exec(line)![0],
-               ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0
+      },
+      { // HorizontalRule
+         condition: /^-+$/,
+         transformer: () => { return { tag: Tag.HorizontalRule } }
+      },
+      { // ListItem (Unordered)
+         condition: /^\s*[-+*]\s+/,
+         transformer: (line): Element => {
+            return {
+               tag: Tag.ListItem,
+               content: line.replace(/[-+*]\s+/, ""),
+               options: { ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0 }
             }
          }
-      }],
-      [/^$/, (_: string): Element => {                // Empty Line
-         return { tag: Tag.Empty }
-      }],
-      [/.*/, (line: string): Element => {             // Paragraph (Text)
-         return {
-            tag: Tag.Paragraph,
-            content: line
+      },
+      { // ListItem (Ordered)
+         condition: /^\s*\d+[.)]\s+/,
+         transformer: (line): Element => {
+            return {
+               tag: Tag.ListItem,
+               content: line.replace(/\d+[.)]\s+/, ""),
+               options: {
+                  ListItemIndex: +/\d+/.exec(line)![0],
+                  ListItemLevel: /^\s+/.test(line) ? /\s+/.exec(line)![0].length : 0
+               }
+            }
          }
-      }],
-   ]
+      },
+      { // Empty line
+         condition: /^$/,
+         transformer: () => { return { tag: Tag.Empty } }
+      },
+      { // Paragraph (everything else)
+         condition: /.*/,
+         transformer: (line: string): Element => { return { tag: Tag.Paragraph, content: line } }
+      },
+   ] as const
 
-   // initial conversion of raw strings into Element format
    let paragraph: string[] = []
    const ListItemLevels: number[] = []
    let insideList: boolean = false
 
    return lines
+      // remove # comments
       .filter((e) => !/^#\s/.test(e))
+      // convert raw strings into Elements
       .map((line) => {
-         const match = lineToElement.find((elem => elem[0].test(line)))
+         const match = lineToElement.find((tran => tran.condition.test(line)))
 
-         const cond = match![0], func = match![1]
+         const cond = match!.condition, func = match!.transformer
 
          const element = func(line).content
             ? func(line)
@@ -114,6 +126,7 @@ export function lexLines(lines: string[]): Element[] {
 
          return element
       })
+      // fine processing
       .flatMap((elem, index, array): Element | Element[] => {
          const prev = array[index - 1]
          const next = array[index + 1]
@@ -124,13 +137,11 @@ export function lexLines(lines: string[]): Element[] {
 
          switch (true) {
             case elem.tag == Tag.Paragraph:
-               // propagate BlockClass
-               if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)
+               if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)  // propagate BlockClass
                   elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
 
-               // join paragraphs that aren't separated by an empty line
-               if (prev?.tag == Tag.Paragraph) {
-                  const separator = (() => {
+               if (prev?.tag == Tag.Paragraph) {    // join paragraphs that aren't separated by an
+                  const separator = (() => {                                         // empty line
                      switch (true) {
                         case prev.options?.BlockClass == "src": return "<br>"
                         default: return ' '
@@ -152,7 +163,7 @@ export function lexLines(lines: string[]): Element[] {
 
                break
 
-            // Insert ListItemStart
+            // insert ListItemStart
             case elem.tag == Tag.ListItem && prev?.tag != Tag.ListItem:
                tag = elem.options?.ListItemIndex
                   ? Tag.OrderedListStart
@@ -160,7 +171,7 @@ export function lexLines(lines: string[]): Element[] {
 
                return [{ tag: tag }, elem]
 
-            // Insert ListItemEnd
+            // insert ListItemEnd
             case elem.tag == Tag.ListItem && next?.tag != Tag.ListItem:
                tag = elem.options?.ListItemIndex
                   ? Tag.OrderedListEnd
@@ -173,6 +184,7 @@ export function lexLines(lines: string[]): Element[] {
          }
          return { tag: Tag.Empty }
       })
+      // collect ListItemLevels
       .map((elem) => {
          if (elem.tag == Tag.OrderedListStart || elem.tag == Tag.UnorderedListStart)
             insideList = true
@@ -186,6 +198,7 @@ export function lexLines(lines: string[]): Element[] {
 
          return (elem)
       })
+      // normalise ListItemLevel
       .map((elem) => {
          if (!elem.options?.ListItemLevel) return elem
 
@@ -199,6 +212,7 @@ export function lexLines(lines: string[]): Element[] {
             }
          }
       })
+      // remove empty lines and comments
       .filter((elem) =>
          elem.tag != Tag.Empty && elem.options?.BlockClass != "comment"
       )
