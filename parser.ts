@@ -39,12 +39,15 @@ function parseLine(line: string): string {
                } else return "["
             case char == "]":
                if (prev == "]") return ""
-               style.link = false
+
                if (next == "[") {
+                  style.link = false
                   return '">'
                } else if (next == "]" && style.link) {
+                  style.link = false
                   return '">' + link.join('') + "</a>"
                } else if (next == "]") {
+                  style.link = false
                   return "</a>"
                }
                else return "]"
@@ -95,8 +98,11 @@ export function parseElements(elements: Element[]): html {
       result: string
    }
 
+   let ListOpen: number = 0
+
    const allResults: resultCandidate[] = elements
-      .map((element) => {
+      .map((element, index, elements) => {
+         const next = elements[index + 1]
          const content = element.content?.trim()
          const options = element.options
          const tag = element.tag
@@ -111,6 +117,47 @@ export function parseElements(elements: Element[]): html {
                      tag.includes("/") ? ">" :
                         options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
                   ].join('')
+               }
+            case tag == Tag.ListItem:
+               if (
+                  next.tag == Tag.ListItem &&
+                  next.options?.ListItemLevel! > options?.ListItemLevel!
+               ) {
+                  ListOpen += 1                  
+
+                  return {
+                     isHead: false,
+                     result: [
+                        "<li>",
+                        content,
+                        "<ul>"
+                     ].join('')
+                  }
+               } else if (
+                  next.tag != Tag.ListItem ||
+                  next.options?.ListItemLevel! < options?.ListItemLevel!
+               ) {
+                  const tempListOpen = ListOpen
+                  ListOpen = 0
+
+                  return {
+                     isHead: false,
+                     result: [
+                        "<", tag, ">",
+                        content,
+                        "</", tag, ">",
+                        "</ul></li>".repeat(tempListOpen)
+                     ].join('')
+                  }
+               } else {
+                  return {
+                     isHead: headTags.includes(tag),
+                     result: [
+                        "<", tag, ">",
+                        content,
+                        "</", tag, ">"
+                     ].join('')
+                  }
                }
             case content != '':
                return {
@@ -136,7 +183,7 @@ export function parseElements(elements: Element[]): html {
       })
 
    return {
-      head: allResults.map((e) => e.isHead ? e.result : ""),
-      body: allResults.map((e) => e.isHead ? "" : e.result),
+      head: allResults.map((e) => e.isHead ? e.result : "").filter((e) => e != ""),
+      body: allResults.map((e) => e.isHead ? "" : e.result).filter((e) => e != ""),
    }
 }

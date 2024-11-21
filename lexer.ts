@@ -101,8 +101,8 @@ export function lexLines(lines: string[]): Element[] {
    ] as const
 
    let paragraph: string[] = []
-   const ListItemLevels: number[] = []
-   let insideList: boolean = false
+   const ListItemLevels: number[][] = []
+   let listNumber: number = -1
 
    return lines
       // remove # comments
@@ -186,29 +186,33 @@ export function lexLines(lines: string[]): Element[] {
       })
       // collect ListItemLevels
       .map((elem) => {
-         if (elem.tag == Tag.OrderedListStart || elem.tag == Tag.UnorderedListStart)
-            insideList = true
-         else if (elem.tag == Tag.OrderedListEnd || elem.tag == Tag.UnorderedListEnd)
-            insideList = false
-         else if (
-            insideList &&
-            elem.tag == Tag.ListItem &&
-            !ListItemLevels.includes(elem.options?.ListItemLevel!)
-         ) ListItemLevels.push(elem.options?.ListItemLevel!)
+         switch (elem.tag) {
+            case Tag.OrderedListStart:
+            case Tag.UnorderedListStart:
+               listNumber += 1
+               ListItemLevels.push([])
+               break
 
-         return (elem)
+            case Tag.OrderedListEnd:
+            case Tag.UnorderedListEnd:
+               ListItemLevels[listNumber].toSorted((a, b) => a - b)
+               break
+
+            case Tag.ListItem:
+               ListItemLevels[listNumber].push(elem.options?.ListItemLevel!)
+         }
+
+         return elem
       })
       // normalise ListItemLevel
       .map((elem) => {
          if (!elem.options?.ListItemLevel) return elem
 
-         ListItemLevels.toSorted((a, b) => a - b)
-
          return {
             ...elem,
             options: {
                ...elem.options,
-               ListItemLevel: ListItemLevels.indexOf(elem.options?.ListItemLevel!)
+               ListItemLevel: ListItemLevels[listNumber].indexOf(elem.options?.ListItemLevel!)
             }
          }
       })
