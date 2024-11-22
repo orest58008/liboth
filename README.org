@@ -3,3 +3,10 @@
 * Skinless output
 liboth supplies [[https://nerdy.dev/headless-boneless-and-skinless-ui#skinless-ui][skinless]] HTML
 output that is designed to be stylable and JS-able by the user.
+
+* Inline HTML support
+liboth deviates from orgmode standard in that it can include inline HTML (<b>bold</b> is possible
+instead of =*bold*=).
+
+To escape =/= in closing tags, escape it by doubling it (=//=). This can also be done with other
+styling characters (=*=, =_=, ===, =~= and =+=)

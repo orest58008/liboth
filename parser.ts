@@ -33,14 +33,11 @@ function parseLine(line: string): string {
       ".webp",
    ] as const
 
-   const style = {
-      bold: false,
-      code: false,
-      italic: false,
-      strikeThrough: false,
-      underlined: false,
-      verbatim: false,
-   }
+   let verbatim = false
+   const styles: string[] = []
+   const INLINE_STYLES = [
+      ["*", "b"], ["/", "i"], ["+", "s"], ["_", "u"], ["~", "code"],
+   ] as const
 
    return line.split('')
       .map((char, index, array) => {
@@ -49,9 +46,11 @@ function parseLine(line: string): string {
 
          switch (true) {
             case char == "=":
-               style.verbatim = !style.verbatim
-               return style.verbatim ? "<code>" : "</code>"
-            case style.verbatim:
+               if (next == "=") return ""
+               if (prev == "=") return "="
+               verbatim = !verbatim
+               return verbatim ? "<code>" : "</code>"
+            case verbatim:
                return char
 
             case char == "\\":
@@ -83,21 +82,19 @@ function parseLine(line: string): string {
                link.text.push(char)
                return ""
 
-            case char == "*":
-               style.bold = !style.bold
-               return style.bold ? "<b>" : "</b>"
-            case char == "/":
-               style.italic = !style.italic
-               return style.italic ? "<i>" : "</i>"
-            case char == "_":
-               style.underlined = !style.underlined
-               return style.underlined ? "<u>" : "</u>"
-            case char == "+":
-               style.strikeThrough = !style.strikeThrough
-               return style.strikeThrough ? "<s>" : "</s>"
-            case char == "~":
-               style.code = !style.code
-               return style.code ? "<code>" : "</code>"
+            case (INLINE_STYLES.some((e) => e[0] == char)): {
+               if (next == char) return ""
+               if (prev == char) return char
+
+               const tag = INLINE_STYLES.find((e) => e[0] == char)![1]
+               if (!styles.includes(char)) {
+                  styles.push(char)
+                  return `<${tag}>`
+               } else {
+                  styles.splice(styles.indexOf(char), 1)
+                  return `</${tag}>`
+               }
+            }
 
             case true:
                return char
