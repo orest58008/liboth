@@ -67,9 +67,12 @@ function parseLine(line: string): string {
             case char == "]":
                if (next == "[" || next == "]") return ""
                else if (prev == "]") {
-                  const url = link.url.join(''), text = link.text.join('')
+                  const text = link.text.join('')
+                  const url = link.url[0] == "*"
+                     ? link.url.join('').replace("*", "#").replace(/\s/g, "-")
+                     : link.url.join('')
                   link = new Link(false)
-                  if (IMAGE_FORMATS.some((f) => url.endsWith(f)))
+                  if (IMAGE_FORMATS.some((f) => url.endsWith(f)) && !url.startsWith("#"))
                      return `<img src="${url}" alt="${text}" />`
                   else
                      return `<a href="${url}">${text ? text : url}</a>`
@@ -148,16 +151,9 @@ export function parseElements(elements: Element[]): html {
                   next.tag == Tag.ListItem &&
                   next.options?.ListItemLevel! > options?.ListItemLevel!
                ) {
-                  ListOpen += 1                  
+                  ListOpen += 1
 
-                  return {
-                     isHead: false,
-                     result: [
-                        "<li>",
-                        content,
-                        "<ul>"
-                     ].join('')
-                  }
+                  return { isHead: false, result: `<li>${content}<ul>` }
                } else if (
                   next.tag != Tag.ListItem ||
                   next.options?.ListItemLevel! < options?.ListItemLevel!
@@ -167,23 +163,9 @@ export function parseElements(elements: Element[]): html {
 
                   return {
                      isHead: false,
-                     result: [
-                        "<", tag, ">",
-                        content,
-                        "</", tag, ">",
-                        "</ul></li>".repeat(tempListOpen)
-                     ].join('')
+                     result: [`<li>${content}</li>`, "</ul></li>".repeat(tempListOpen)].join('')
                   }
-               } else {
-                  return {
-                     isHead: headTags.includes(tag),
-                     result: [
-                        "<", tag, ">",
-                        content,
-                        "</", tag, ">"
-                     ].join('')
-                  }
-               }
+               } else return { isHead: false, result: `<li>${content}</li>` }
             case content != '':
                return {
                   isHead: headTags.includes(tag),
@@ -191,6 +173,7 @@ export function parseElements(elements: Element[]): html {
                      "<",
                      tag,
                      options?.HeadingLevel ? options.HeadingLevel : "",
+                     options?.HeadingLevel ? ` id="${content?.replace(/\s/g, "-")}" ` : "",
                      options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
                      options?.BlockClass ? content : parseLine(content!),
                      "</",
@@ -200,10 +183,7 @@ export function parseElements(elements: Element[]): html {
                   ].join('')
                }
             default:
-               return {
-                  isHead: headTags.includes(tag),
-                  result: "<" + tag + ">"
-               }
+               return { isHead: headTags.includes(tag), result: `<${tag}>` }
          }
       })
 
