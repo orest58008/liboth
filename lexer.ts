@@ -41,7 +41,7 @@ interface ElementTransformer {
 
 export function lexLines(lines: string[]): Element[] {
    // define a table of tag conditions
-   const lineToElement: ElementTransformer[] = [
+   const LINE_TO_ELEMENT: ElementTransformer[] = [
       { // Title
          condition: /^#\+TITLE:\s*/i,
          transformer: () => { return { tag: Tag.Title } }
@@ -109,7 +109,7 @@ export function lexLines(lines: string[]): Element[] {
       .filter((e) => !/^#\s/.test(e))
       // convert raw strings into Elements
       .map((line) => {
-         const match = lineToElement.find((tran => tran.condition.test(line)))
+         const match = LINE_TO_ELEMENT.find((tran => tran.condition.test(line)))
 
          const cond = match!.condition, func = match!.transformer
 
@@ -126,42 +126,29 @@ export function lexLines(lines: string[]): Element[] {
 
          return element
       })
-      // fine processing
+      // post-processing
       .flatMap((elem, index, array): Element | Element[] => {
          const prev = array[index - 1]
          const next = array[index + 1]
 
-         const content = elem.content?.trim()
-         const prev_content = prev?.content?.trim()
          let tag: Tag
 
          switch (true) {
-            case elem.tag == Tag.Paragraph:
-               if (prev?.tag != Tag.BlockEnd && prev.options?.BlockClass)  // propagate BlockClass
-                  elem.options = { ...elem.options, BlockClass: prev.options?.BlockClass }
+            // propagate BlockClass and join paragraphs
+            case (elem.tag == Tag.Paragraph):
+               paragraph.push(elem.content?.trim()!)
 
-               if (prev?.tag == Tag.Paragraph) {    // join paragraphs that aren't separated by an
-                  const separator = (() => {                                         // empty line
-                     switch (true) {
-                        case prev.options?.BlockClass == "src": return "<br>"
-                        default: return ' '
-                     }
-                  })()
+               if (prev.options?.BlockClass != undefined && prev.tag != Tag.BlockEnd)
+                  elem.options = { ...elem.options, BlockClass: prev.options.BlockClass }
 
-                  if (!paragraph.length)
-                     paragraph.push(prev_content!, content!)
-                  else
-                     paragraph.push(content!)
-
-                  if (next?.tag != Tag.Paragraph) {
-                     const content = paragraph.join(separator)
-                     paragraph = []
-
-                     return { ...elem, content: content }
-                  }
+               if (next.tag != Tag.Paragraph) {
+                  const separator = prev.options?.BlockClass == "src" ? "<br>" : " "
+                  const content = paragraph.join(separator)
+                  paragraph = []
+                  return { ...elem, content: content }
                }
 
-               break
+               return { tag: Tag.Empty }
 
             // insert ListItemStart
             case elem.tag == Tag.ListItem && prev?.tag != Tag.ListItem:
