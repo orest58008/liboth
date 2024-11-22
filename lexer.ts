@@ -187,14 +187,12 @@ export function lexLines(lines: string[]): Element[] {
       // collect ListItemLevels
       .map((elem) => {
          switch (elem.tag) {
-            case Tag.OrderedListStart:
-            case Tag.UnorderedListStart:
+            case Tag.OrderedListStart: case Tag.UnorderedListStart:
                listNumber += 1
                ListItemLevels.push([])
                break
 
-            case Tag.OrderedListEnd:
-            case Tag.UnorderedListEnd:
+            case Tag.UnorderedListEnd: case Tag.OrderedListEnd:
                ListItemLevels[listNumber].toSorted((a, b) => a - b)
                break
 

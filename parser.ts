@@ -1,10 +1,39 @@
 import { Element, Tag } from "./lexer.ts";
 
 function parseLine(line: string): string {
-   let link: string[] = []
+   class Link {
+      constructor(urlFlag: boolean) {
+         this.urlFlag = urlFlag
+         this.url = []
+         this.textFlag = false
+         this.text = []
+      }
+
+      urlFlag: boolean = false
+      url: string[] = []
+      textFlag: boolean = false
+      text: string[] = []
+   }
+   let link: Link = new Link(false)
+
+   const IMAGE_FORMATS = [
+      ".apng", ".avif",
+      ".bmp",
+      ".cur",
+      ".exif", ".exr",
+      ".flif",
+      ".gif", ".giff",
+      ".heic", ".heif",
+      ".ico",
+      ".j2k", ".jfif", ".jpeg", ".jpg", ".jpx", ".jxl",
+      ".png",
+      ".qoi",
+      ".svg", ".svgz",
+      ".tif", ".tiff",
+      ".webp",
+   ] as const
 
    const style = {
-      link: false,
       bold: false,
       code: false,
       italic: false,
@@ -26,34 +55,33 @@ function parseLine(line: string): string {
                return char
 
             case char == "\\":
-               if (next == "\\") return ""
-               if (prev == "\\") return "<br>"
-               else return "\\"
+               if (prev == "\\") return ""
+               if (next == "\\") return "<br>"
+               return "\\"
 
             case char == "[":
-               if (prev == "[" || prev == "]") return ""
-               else if (next == "[") {
-                  style.link = true
-                  link = []
-                  return '<a href="'
-               } else return "["
+               if (next == "[") return ""
+               else if (prev == "[") link = new Link(true)
+               else if (prev == "]") link.textFlag = !(link.urlFlag = false)
+               else return "["
+               return ""
             case char == "]":
-               if (prev == "]") return ""
-
-               if (next == "[") {
-                  style.link = false
-                  return '">'
-               } else if (next == "]" && style.link) {
-                  style.link = false
-                  return '">' + link.join('') + "</a>"
-               } else if (next == "]") {
-                  style.link = false
-                  return "</a>"
+               if (next == "[" || next == "]") return ""
+               else if (prev == "]") {
+                  const url = link.url.join(''), text = link.text.join('')
+                  link = new Link(false)
+                  if (IMAGE_FORMATS.some((f) => url.endsWith(f)))
+                     return `<img src="${url}" alt="${text}" />`
+                  else
+                     return `<a href="${url}">${text ? text : url}</a>`
                }
                else return "]"
-            case style.link:
-               link.push(char)
-               return char
+            case link.urlFlag:
+               link.url.push(char)
+               return ""
+            case link.textFlag:
+               link.text.push(char)
+               return ""
 
             case char == "*":
                style.bold = !style.bold
