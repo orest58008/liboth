@@ -39,6 +39,11 @@ interface ElementTransformer {
    transformer: (_: string) => Element,
 }
 
+/**
+ * Converts HTML into an array of AST tokens that are accepted by parseElements.
+ * @param lines HTML source split by lines (by '\n')
+ * @returns AST token representation of input HTML
+ */
 export function lexLines(lines: string[]): Element[] {
    // define a table of tag conditions
    const LINE_TO_ELEMENT: ElementTransformer[] = [
@@ -127,7 +132,7 @@ export function lexLines(lines: string[]): Element[] {
          return element
       })
       // post-processing
-      .flatMap((elem, index, array): Element | Element[] => {
+      .flatMap((elem, index, array) => {
          const prev = array[index - 1]
          const next = array[index + 1]
 
@@ -141,7 +146,7 @@ export function lexLines(lines: string[]): Element[] {
                if (prev.options?.BlockClass != undefined && prev.tag != Tag.BlockEnd)
                   elem.options = { ...elem.options, BlockClass: prev.options.BlockClass }
 
-               if (next.tag != Tag.Paragraph) {
+               if (next == undefined || next.tag != Tag.Paragraph) {
                   const separator = prev.options?.BlockClass == "src" ? "<br>" : " "
                   const content = paragraph.join(separator)
                   paragraph = []
@@ -191,13 +196,14 @@ export function lexLines(lines: string[]): Element[] {
       })
       // normalise ListItemLevel
       .map((elem) => {
-         if (!elem.options?.ListItemLevel) return elem
+         const ListItemLevel = elem.options?.ListItemLevel
+
+         if (!ListItemLevel) return elem
 
          return {
             ...elem,
             options: {
-               ...elem.options,
-               ListItemLevel: ListItemLevels[listNumber].indexOf(elem.options?.ListItemLevel!)
+               ...elem.options, ListItemLevel: ListItemLevels[listNumber].indexOf(ListItemLevel)
             }
          }
       })

@@ -1,4 +1,7 @@
 {
+   "name": "@orest58008/liboth",
+   "version": "0.1.0",
+   "exports": "./parser.ts",
    "tasks": {
       "test": "deno run --allow-all test.ts"
    }

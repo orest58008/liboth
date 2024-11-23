@@ -1,4 +1,4 @@
-import { Element, Tag } from "./lexer.ts";
+import { type Element, Tag } from "./lexer.ts";
 
 function parseLine(line: string): string {
    class Link {
@@ -105,12 +105,21 @@ function parseLine(line: string): string {
       }).join('')
 }
 
-export interface html {
+/** HTML wrapper interface */
+export interface Html {
+   /** Elements that should be incased in <head> */
    head: string[],
+   /** Elements that should be incased in <body> */
    body: string[],
 }
 
-export function parseElements(elements: Element[]): html {
+/**
+ * Converts AST format into (probably) valid HTML
+ * @param elements AST representation of HTML, produced by lexLines
+ * @returns parsed HTML in wrapped in Html interface
+ */
+
+export function parseElements(elements: Element[]): Html {
    const blockTags: Tag[] = [
       Tag.BlockStart, Tag.BlockEnd,
       Tag.OrderedListStart, Tag.OrderedListEnd,
@@ -175,7 +184,7 @@ export function parseElements(elements: Element[]): html {
                      options?.HeadingLevel ? options.HeadingLevel : "",
                      options?.HeadingLevel ? ` id="${content?.replace(/\s/g, "-")}" ` : "",
                      options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-                     options?.BlockClass ? content : parseLine(content!),
+                     options?.BlockClass || headTags.includes(tag) ? content : parseLine(content!),
                      "</",
                      tag,
                      options?.HeadingLevel ? options.HeadingLevel : "",
