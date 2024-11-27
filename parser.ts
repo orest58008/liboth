@@ -88,6 +88,8 @@ function parseLine(line: string): string {
             case (INLINE_STYLES.some((e) => e[0] == char)): {
                if (next == char) return ""
                if (prev == char) return char
+               if (prev == "<" && char == "/") return "/"
+               if (next == ">" && char == "/") return "/"
 
                const tag = INLINE_STYLES.find((e) => e[0] == char)![1]
                if (!styles.includes(char)) {
