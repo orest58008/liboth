@@ -1,6 +1,6 @@
 {
    "name": "@orest58008/liboth",
-   "version": "0.1.1",
+   "version": "0.1.2",
    "exports": "./mod.ts",
    "tasks": {
       "test": "deno run --allow-all test.ts"

@@ -28,6 +28,7 @@ interface ElementOptions {
    ListItemIndex?: number,
 }
 
+/** Internal AST type for communication between lexLines and parseElements */
 export interface Element {
    tag: Tag,
    options?: ElementOptions,
