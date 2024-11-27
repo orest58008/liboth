@@ -70,11 +70,11 @@ export function lexLines(lines: string[]): Element[] {
          }
       },
       { // HorizontalRule
-         condition: /^-+$/,
+         condition: /^-{5}-*$/,
          transformer: () => { return { tag: Tag.HorizontalRule } }
       },
       { // ListItem (Unordered)
-         condition: /^\s*[-+*]\s+/,
+         condition: /^\s*[-+*]\s+./,
          transformer: (line): Element => {
             return {
                tag: Tag.ListItem,
@@ -84,7 +84,7 @@ export function lexLines(lines: string[]): Element[] {
          }
       },
       { // ListItem (Ordered)
-         condition: /^\s*\d+[.)]\s+/,
+         condition: /^\s*\d+[.)]\s+./,
          transformer: (line): Element => {
             return {
                tag: Tag.ListItem,
@@ -107,6 +107,8 @@ export function lexLines(lines: string[]): Element[] {
    ] as const
 
    let paragraph: string[] = []
+   let paragraphTag: Tag = Tag.Empty
+   let paragraphOptions: ElementOptions = {}
    const ListItemLevels: number[][] = []
    let listNumber: number = -1
 
@@ -134,43 +136,69 @@ export function lexLines(lines: string[]): Element[] {
       })
       // post-processing
       .flatMap((elem, index, array) => {
+         function joinContent(separator: string = " "): Element {
+            const tag = paragraphTag
+            paragraphTag = Tag.Empty
+            const content = paragraph.join(separator)
+            paragraph = []
+            const options = JSON.parse(JSON.stringify(paragraphOptions))
+            paragraphOptions = {}
+            return { ...elem, tag: tag, content: content, options: options }
+         }
+
          const prev = array[index - 1]
          const next = array[index + 1]
 
-         let tag: Tag
-
          switch (true) {
             // propagate BlockClass and join paragraphs
-            case (elem.tag == Tag.Paragraph):
+            case elem.tag == Tag.Paragraph:
                paragraph.push(elem.content?.trim()!)
+
+               if (paragraphTag == Tag.Empty) { paragraphTag = elem.tag }
 
                if (prev.options?.BlockClass != undefined && prev.tag != Tag.BlockEnd)
                   elem.options = { ...elem.options, BlockClass: prev.options.BlockClass }
 
-               if (next == undefined || next.tag != Tag.Paragraph) {
+               if (typeof next == "undefined" || next.tag != Tag.Paragraph) {
+                  if (
+                     paragraphTag == Tag.ListItem &&
+                     (typeof next == "undefined" || next.tag != Tag.ListItem)
+                  ) {
+                     const tag: Tag = elem.options?.ListItemIndex
+                        ? Tag.OrderedListEnd
+                        : Tag.UnorderedListEnd
+                     return [joinContent(), { tag: tag }]
+                  }
                   const separator = prev.options?.BlockClass == "src" ? "<br>" : " "
-                  const content = paragraph.join(separator)
-                  paragraph = []
-                  return { ...elem, content: content }
+                  return joinContent(separator)
                }
 
                return { tag: Tag.Empty }
 
-            // insert ListItemStart
-            case elem.tag == Tag.ListItem && prev?.tag != Tag.ListItem:
-               tag = elem.options?.ListItemIndex
-                  ? Tag.OrderedListStart
-                  : Tag.UnorderedListStart
+            case elem.tag == Tag.ListItem:
+               paragraph.push(elem.content?.trim()!)
+               if (paragraphTag == Tag.Empty) { paragraphTag = elem.tag }
+               paragraphOptions = elem.options ? elem.options : {}
 
-               return [{ tag: tag }, elem]
+               // insert ListItemStart
+               if (prev?.tag != Tag.ListItem) {
+                  const tag: Tag = elem.options?.ListItemIndex
+                     ? Tag.OrderedListStart
+                     : Tag.UnorderedListStart
+                  return [{ tag: tag }, joinContent()]
+               }
 
-            // insert ListItemEnd
-            case elem.tag == Tag.ListItem && next?.tag != Tag.ListItem:
-               tag = elem.options?.ListItemIndex
-                  ? Tag.OrderedListEnd
-                  : Tag.UnorderedListEnd
+               // insert ListItemEnd
+               if (next?.tag != Tag.ListItem && next.tag != Tag.Paragraph) {
+                  const tag: Tag = elem.options?.ListItemIndex
+                     ? Tag.OrderedListEnd
+                     : Tag.UnorderedListEnd
+                  return [joinContent(), { tag: tag }] 
+               }
 
-               return [elem, { tag: tag }]
+               if (next.tag == Tag.ListItem) return joinContent()
+
+               return { tag: Tag.Empty }
 
             case true:
                return elem
@@ -210,6 +238,8 @@ export function lexLines(lines: string[]): Element[] {
       })
       // remove empty lines and comments
       .filter((elem) =>
-         elem.tag != Tag.Empty && elem.options?.BlockClass != "comment"
+         typeof elem != "undefined" &&
+         elem.tag != Tag.Empty &&
+         elem.options?.BlockClass != "comment"
       )
 }

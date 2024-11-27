@@ -6,6 +6,8 @@ const file = Deno.args[0]
 const lexer_out =
    lexer.lexLines(Deno.readTextFileSync(file).split(/\n/))
 
+console.debug(lexer_out)
+
 const parser_out =
    parser.parseElements(lexer_out)
 

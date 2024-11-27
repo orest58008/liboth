@@ -107,9 +107,9 @@ function parseLine(line: string): string {
 
 /** HTML wrapper interface */
 export interface Html {
-   /** Elements that should be incased in <head> */
+   /** Elements that should be incased in the head tag */
    head: string[],
-   /** Elements that should be incased in <body> */
+   /** Elements that should be incased in the body tag */
    body: string[],
 }
 
@@ -120,7 +120,7 @@ export interface Html {
  */
 
 export function parseElements(elements: Element[]): Html {
-   const blockTags: Tag[] = [
+   const BLOCK_TAGS: Tag[] = [
       Tag.BlockStart, Tag.BlockEnd,
       Tag.OrderedListStart, Tag.OrderedListEnd,
       Tag.UnorderedListStart, Tag.UnorderedListEnd,
@@ -140,12 +140,12 @@ export function parseElements(elements: Element[]): Html {
    const allResults: resultCandidate[] = elements
       .map((element, index, elements) => {
          const next = elements[index + 1]
-         const content = element.content?.trim()
+         const content = element.content
          const options = element.options
          const tag = element.tag
 
          switch (true) {
-            case blockTags.includes(tag):
+            case BLOCK_TAGS.includes(tag):
                return {
                   isHead: headTags.includes(tag),
                   result: [
@@ -155,7 +155,8 @@ export function parseElements(elements: Element[]): Html {
                         options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
                   ].join('')
                }
-            case tag == Tag.ListItem:
+            case tag == Tag.ListItem: {
+               const content = parseLine(element.content!)
                if (
                   next.tag == Tag.ListItem &&
                   next.options?.ListItemLevel! > options?.ListItemLevel!
@@ -174,8 +175,11 @@ export function parseElements(elements: Element[]): Html {
                      isHead: false,
                      result: [`<li>${content}</li>`, "</ul></li>".repeat(tempListOpen)].join('')
                   }
-               } else return { isHead: false, result: `<li>${content}</li>` }
-            case content != '':
+               }
+
+               return { isHead: false, result: `<li>${content}</li>` }
+            }
+            case typeof content != "undefined":
                return {
                   isHead: headTags.includes(tag),
                   result: [
