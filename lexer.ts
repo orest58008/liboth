@@ -141,7 +141,7 @@ export function lexLines(lines: string[]): Element[] {
             paragraphTag = Tag.Empty
             const content = paragraph.join(separator)
             paragraph = []
-            const options = JSON.parse(JSON.stringify(paragraphOptions))
+            const options = { ...paragraphOptions }
             paragraphOptions = {}
             return { ...elem, tag: tag, content: content, options: options }
          }
@@ -153,11 +153,13 @@ export function lexLines(lines: string[]): Element[] {
             // propagate BlockClass and join paragraphs
             case elem.tag == Tag.Paragraph:
                paragraph.push(elem.content?.trim()!)
-
-               if (paragraphTag == Tag.Empty) { paragraphTag = elem.tag }
+               if (paragraphTag == Tag.Empty)
+                  paragraphTag = (prev.tag == Tag.ListItem ? Tag.ListItem : elem.tag)
+               if (Object.keys(paragraphOptions).length < 1)
+                  paragraphOptions = elem.options ? elem.options : {}
 
                if (prev.options?.BlockClass != undefined && prev.tag != Tag.BlockEnd)
-                  elem.options = { ...elem.options, BlockClass: prev.options.BlockClass }
+                  paragraphOptions = { ...paragraphOptions, BlockClass: prev.options.BlockClass }
 
                if (typeof next == "undefined" || next.tag != Tag.Paragraph) {
                   if (
@@ -175,10 +177,12 @@ export function lexLines(lines: string[]): Element[] {
 
                return { tag: Tag.Empty }
 
+            // join paragraphs to list items
             case elem.tag == Tag.ListItem:
                paragraph.push(elem.content?.trim()!)
-               if (paragraphTag == Tag.Empty) { paragraphTag = elem.tag }
-               paragraphOptions = elem.options ? elem.options : {}
+               paragraphTag = elem.tag
+               if (Object.keys(paragraphOptions).length < 1)
+                  paragraphOptions = elem.options ? elem.options : {}
 
                // insert ListItemStart
                if (prev?.tag != Tag.ListItem) {
