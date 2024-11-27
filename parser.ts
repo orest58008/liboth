@@ -124,6 +124,7 @@ export interface Html {
 export function parseElements(elements: Element[]): Html {
    const BLOCK_TAGS: Tag[] = [
       Tag.BlockStart, Tag.BlockEnd,
+      Tag.BlockQuoteStart, Tag.BlockQuoteEnd,
       Tag.OrderedListStart, Tag.OrderedListEnd,
       Tag.UnorderedListStart, Tag.UnorderedListEnd,
    ] as const

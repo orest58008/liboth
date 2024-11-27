@@ -5,6 +5,8 @@ export enum Tag {
 
    BlockStart = "div",
    BlockEnd = "/div",
+   BlockQuoteStart = "blockquote",
+   BlockQuoteEnd = "/blockquote",
    OrderedListStart = "ol",
    OrderedListEnd = "/ol",
    UnorderedListStart = "ul",
@@ -51,6 +53,14 @@ export function lexLines(lines: string[]): Element[] {
       { // Title
          condition: /^#\+TITLE:\s*/i,
          transformer: () => { return { tag: Tag.Title } }
+      },
+      { // BlockStart
+         condition: /^#\+BEGIN_QUOTE/i,
+         transformer: () => { return { tag: Tag.BlockQuoteStart } }
+      },
+      { // BlockEnd
+         condition: /^#\+END_QUOTE/i,
+         transformer: () => { return { tag: Tag.BlockQuoteEnd } }
       },
       { // BlockStart
          condition: /^#\+BEGIN_/i,
@@ -104,6 +114,10 @@ export function lexLines(lines: string[]): Element[] {
          condition: /.*/,
          transformer: (line: string): Element => { return { tag: Tag.Paragraph, content: line } }
       },
+   ] as const
+
+   const MULTILINE_BLOCK_CLASSES: string[] = [
+      "src", "verse"
    ] as const
 
    let paragraph: string[] = []
@@ -171,7 +185,8 @@ export function lexLines(lines: string[]): Element[] {
                         : Tag.UnorderedListEnd
                      return [joinContent(), { tag: tag }]
                   }
-                  const separator = prev.options?.BlockClass == "src" ? "<br>" : " "
+                  const separator = MULTILINE_BLOCK_CLASSES.includes(paragraphOptions.BlockClass!)
+                     ? "<br>" : " "
                   return joinContent(separator)
                }
 
