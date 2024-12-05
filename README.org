@@ -6,9 +6,9 @@ output that is designed to be stylable and JS-able by the user.
 
 * Difference from org standard
 ** Inline HTML support
-liboth supports inline HTML (<b>bold</b> is possible instead of =*bold*=).
+liboth supports inline HTML (=<b>bold</b>= is possible instead of =*bold*=).
 
-*NB!* =/= in closing tags should be [[#Style-character-escaping][escaped]].
+*NB!* =/= in closing tags is auto-detected and auto-escaped.
 
 ** Style character escaping
 Style characters (===, =*=, =/=, =+=, =_= and =~=) can be escaped by doubling them. E.g., to escape

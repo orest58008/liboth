@@ -261,4 +261,6 @@ export function lexLines(lines: string[]): Element[] {
          elem.tag != Tag.Empty &&
          elem.options?.BlockClass != "comment"
       )
+      // remove empty content
+      .map((elem) => elem.content == "" ? { ...elem, content: undefined } : elem)
 }

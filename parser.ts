@@ -129,8 +129,12 @@ export function parseElements(elements: Element[]): Html {
       Tag.UnorderedListStart, Tag.UnorderedListEnd,
    ] as const
 
-   const headTags: Tag[] = [
+   const HEAD_TAGS: Tag[] = [
       Tag.Title
+   ] as const
+
+   const PREFORMATTED_CLASSES: string[] = [
+      "src", "example"
    ] as const
 
    interface resultCandidate {
@@ -150,7 +154,7 @@ export function parseElements(elements: Element[]): Html {
          switch (true) {
             case BLOCK_TAGS.includes(tag):
                return {
-                  isHead: headTags.includes(tag),
+                  isHead: HEAD_TAGS.includes(tag),
                   result: [
                      "<",
                      tag,
@@ -182,16 +186,31 @@ export function parseElements(elements: Element[]): Html {
 
                return { isHead: false, result: `<li>${content}</li>` }
             }
+            case tag == Tag.Paragraph: {
+               const BlockClass = options?.BlockClass ? options.BlockClass : ""
+               return {
+                  isHead: false,
+                  result: [
+                     "<",
+                     PREFORMATTED_CLASSES.includes(BlockClass) ? "pre" : "p",
+                     options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
+                     PREFORMATTED_CLASSES.includes(BlockClass) ? content : parseLine(content!),
+                     "</",
+                     PREFORMATTED_CLASSES.includes(BlockClass) ? "pre" : "p",
+                     ">"
+                  ].join('')
+               }
+            }
             case typeof content != "undefined":
                return {
-                  isHead: headTags.includes(tag),
+                  isHead: HEAD_TAGS.includes(tag),
                   result: [
                      "<",
                      tag,
                      options?.HeadingLevel ? options.HeadingLevel : "",
                      options?.HeadingLevel ? ` id="${content?.replace(/\s/g, "-")}" ` : "",
                      options?.BlockClass ? ` class="${options.BlockClass}">` : ">",
-                     options?.BlockClass || headTags.includes(tag) ? content : parseLine(content!),
+                     HEAD_TAGS.includes(tag) ? content : parseLine(content!),
                      "</",
                      tag,
                      options?.HeadingLevel ? options.HeadingLevel : "",
@@ -199,7 +218,7 @@ export function parseElements(elements: Element[]): Html {
                   ].join('')
                }
             default:
-               return { isHead: headTags.includes(tag), result: `<${tag}>` }
+               return { isHead: HEAD_TAGS.includes(tag), result: `<${tag}>` }
          }
       })
       
